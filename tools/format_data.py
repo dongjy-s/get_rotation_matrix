@@ -27,8 +27,6 @@ def format_data(input_file, output_file):
         reader = csv.reader(infile, delimiter='\t')
         writer = csv.writer(outfile)
         
-        # 跳过标题行
-        headers = next(reader)
         writer.writerow(['X', 'Y', 'Z', 'Quaternion_x', 'Quaternion_y', 'Quaternion_z', 'Quaternion_w'])
         
         for row in reader:

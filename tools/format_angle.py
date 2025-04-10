@@ -16,6 +16,8 @@ def extract_angles(file_path):
     # 格式化为j1: [角度列表] 形式
     # 将结果保存为CSV文件
     with open('data/formatted_angle.csv', 'w') as f:
+        # 添加列标题作为注释
+        f.write('# j1,j2,j3,j4,j5,j6 \n')
         for angles in results:
             f.write(','.join(map(str, angles)) + '\n')
     return results
