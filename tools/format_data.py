@@ -45,4 +45,4 @@ if __name__ == "__main__":
     input_csv = "data/data.csv"
     output_csv = "data/formatted_data.csv"
     format_data(input_csv, output_csv)
-    print(f"数据已格式化并保存到 {output_csv}")
+    print("sucess!")
