@@ -188,6 +188,9 @@ class HandEyeCalibration:
         return mean_error, max_error
 
 def main():
+    # 设置 NumPy 打印选项，禁用科学计数法
+    np.set_printoptions(suppress=True, precision=6, floatmode='fixed')
+    
     # 文件路径
     angle_file = "data/formatted_angle.csv"
     data_file = "data/formatted_data.csv"

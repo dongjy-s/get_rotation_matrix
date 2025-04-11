@@ -9,15 +9,15 @@ class RobotKinematics:
         # 关节限位：
         self.joint_limits = [
             [-100, 100],
-            [-99, 100],
-            [-200, 75],
+            [-90, 100],
+            [-100, 60],
             [-100, 100],
-            [-95, 95],
-            [-180, 180]
+            [-90, 90],
+            [-120, 120]
         ]
         # 改进DH参数: [alpha_i, a_i, d_i, theta_offset_i]
         self.modified_dh_params = [
-            [0, 0, 490, 0],
+            [0, 0, 487, 0],
             [-90, 85, 0, -90],
             [0, 640, 0, 0],
             [-90, 205, 720, 0],
@@ -107,32 +107,12 @@ class RobotKinematics:
         
         return position, quaternion, T_flange
 
-    def format_output(self, value, threshold=1e-10, decimal_places=4):
-        """
-        格式的值显示为0，并使用固定小数位数
-        :param value: 需要格式化的数值或数组
-        :param threshold: 小于此阈值的绝对值将被视为0
-        :param decimal_places: 小数位数
-        :return: 格式化后的数值或数组
-        """
-        if isinstance(value, np.ndarray):
-            # 处理数组
-            result = np.copy(value)
-            # 将接近零的值设为0
-            result[np.abs(result) < threshold] = 0
-            # 处理多维数组
-            if result.ndim > 1:
-                return np.array([[round(float(x), decimal_places) for x in row] for row in result])
-            else:
-                # 格式化每个元素
-                return np.array([round(float(x), decimal_places) for x in result])
-        else:
-            # 处理单个数值
-            if abs(value) < threshold:
-                return 0.0
-            return round(value, decimal_places)
+
 
 def main():
+    # 设置 NumPy 打印选项，禁用科学计数法
+    np.set_printoptions(suppress=True, precision=6, floatmode='fixed')
+    
     # 创建机器人运动学实例
     robot = RobotKinematics()
     
@@ -142,16 +122,12 @@ def main():
     # 计算正运动学
     position, quaternion, T_flange = robot.forward_kinematics(joint_angles)
      
-    # 格式化输出结果
-    formatted_position = robot.format_output(position)
-    formatted_quaternion = robot.format_output(quaternion)
-    formatted_T_flange = robot.format_output(T_flange)
-
-    print("末端法兰位姿:", formatted_T_flange)
+    print("末端法兰位姿:")
+    print(T_flange)
     print("------------------------------")
-    print("末端位置 (x, y, z):", formatted_position)
+    print("末端位置 (x, y, z):", position)
     print("------------------------------")
-    print("末端姿态四元数 (x, y, z, w):", formatted_quaternion)
+    print("末端姿态四元数 (x, y, z, w):", quaternion)
 
 if __name__ == "__main__":
     main()
