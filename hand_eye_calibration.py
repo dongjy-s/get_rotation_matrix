@@ -1,225 +1,231 @@
 import numpy as np
-from scipy.spatial.transform import Rotation as R
-from scipy.optimize import minimize
+# 禁用科学计数法
+np.set_printoptions(suppress=True, precision=6, floatmode='fixed')
 import csv
-import os
-from get_matrix_L_T import MatrixConverterL2T
-from get_matrix_B_F import MatrixConverterB2F
+try:
+    import cv2
+    OPENCV_AVAILABLE = True
+except ImportError:
+    OPENCV_AVAILABLE = False
+    print("警告：OpenCV 未安装，AX=YB 标定功能将不可用。")
+from forward_kinematics import RobotKinematics
+from pose_to_transform import  load_transforms
 
-class HandEyeCalibration:
-    def __init__(self):
-        """
-        初始化手眼标定类
-        """
+def load_joint_angles(input_file):
+    """
+    从CSV文件读取关节角度
+    
+    参数:
+        input_file: 输入CSV文件路径（包含j1,j2,j3,j4,j5,j6）
+    
+    返回:
+        list: 包含所有关节角度组的列表
+    """
+    joint_angles_list = []
+    
+    with open(input_file, 'r') as f_in:
+        reader = csv.reader(f_in)
+        next(reader) # 跳过标题行
+        
+        # 处理每一行数据
+        for row in reader:
+            # 提取前6个值并转换为浮点数
+            try:
+                angles = [float(val) for val in row[:6]]
+                joint_angles_list.append(angles)
+            except (ValueError, IndexError) as e:
+                print(f"警告: 读取或转换行数据时出错: {row}, 错误: {e}. 跳过此行.")
+                continue
+    
+    return joint_angles_list
 
-        
-        self.matrixConverter = MatrixConverterL2T()
-        self.robotCalculator = MatrixConverterB2F()
-        
-    def load_data(self, angle_file, data_file):
-        """
-        加载关节角度和激光跟踪仪数据文件
-        
-        参数:
-        angle_file -- 关节角度CSV文件路径
-        data_file -- 激光跟踪仪数据CSV文件路径
-        
-        返回:
-        T_B_F_list -- 基座到法兰的变换矩阵列表
-        T_L_T_list -- 激光跟踪仪到工具的变换矩阵列表
-        """
-        # 计算基座到法兰的变换矩阵列表
-        T_B_F_list = self.robotCalculator.joint_angles_to_matrices(angle_file)
-        
-        # 计算激光跟踪仪到工具的变换矩阵列表
-        T_L_T_list = self.matrixConverter.process_data_file(data_file)
-        
-        # 确保数据数量一致
-        min_len = min(len(T_B_F_list), len(T_L_T_list))
-        T_B_F_list = T_B_F_list[:min_len]
-        T_L_T_list = T_L_T_list[:min_len]
-        
-        return T_B_F_list, T_L_T_list
+def get_fk_transforms(joint_angles_list):
+    """
+    使用正运动学计算变换矩阵
     
-    def transform_to_vector(self, rot_matrix, t):
-        """
-        将旋转矩阵和平移向量转换为参数向量
-        
-        参数:
-        rot_matrix -- 3x3旋转矩阵
-        t -- 3x1平移向量
-        
-        返回:
-        params -- 包含旋转(四元数)和平移的参数向量
-        """
-        # 旋转矩阵转四元数 - 注意这里使用scipy.spatial.transform.Rotation
-        # 而不是使用参数名R来引用旋转矩阵
-        quat = R.from_matrix(rot_matrix).as_quat()  # [x, y, z, w]
-        # 组合参数: [qx, qy, qz, qw, tx, ty, tz]
-        return np.concatenate([quat, t])
+    参数:
+        joint_angles_list: 关节角度列表
     
-    def vector_to_transform(self, params):
-        """
-        将参数向量转换为变换矩阵
-        
-        参数:
-        params -- 包含旋转(四元数)和平移的参数向量 [qx, qy, qz, qw, tx, ty, tz]
-        
-        返回:
-        T -- 4x4变换矩阵
-        """
-        quat = params[:4]  # [qx, qy, qz, qw]
-        trans = params[4:7]  # [tx, ty, tz]
-        
-        # 创建旋转矩阵
-        rot_matrix = R.from_quat(quat).as_matrix()
-        
-        # 创建变换矩阵
-        T = np.eye(4)
-        T[:3, :3] = rot_matrix
-        T[:3, 3] = trans
-        
-        return T
+    返回:
+        list: 包含所有变换矩阵的列表
+    """
+    robot = RobotKinematics()
+    transform_matrices = []
     
-    def cost_function(self, params, T_B_F_list, T_L_T_list):
-        """
-        优化的成本函数: ||T_B_F * T_F_T - T_B_L * T_L_T||
-        
-        参数:
-        params -- 优化参数，包含T_B_L和T_F_T的参数 [T_B_L_params, T_F_T_params]
-        T_B_F_list -- 基座到法兰的变换矩阵列表
-        T_L_T_list -- 激光跟踪仪到工具的变换矩阵列表
-        
-        返回:
-        error -- 所有姿态下的总误差
-        """
-        # 将参数分为两部分
-        T_B_L_params = params[:7]  # T_B_L的7个参数 [qx, qy, qz, qw, tx, ty, tz]
-        T_F_T_params = params[7:]  # T_F_T的7个参数 [qx, qy, qz, qw, tx, ty, tz]
-        
-        # 转换为变换矩阵
-        T_B_L = self.vector_to_transform(T_B_L_params)
-        T_F_T = self.vector_to_transform(T_F_T_params)
-        
-        # 计算所有姿态的误差
-        total_error = 0
-        for i in range(len(T_B_F_list)):
-            # 手眼标定方程: T_B_F * T_F_T = T_B_L * T_L_T
-            left_side = np.dot(T_B_F_list[i], T_F_T)
-            right_side = np.dot(T_B_L, T_L_T_list[i])
-            
-            # 计算误差（矩阵范数）
-            error = np.linalg.norm(left_side - right_side, 'fro')
-            total_error += error
-        
-        return total_error
+    for idx, angles in enumerate(joint_angles_list):
+        try:
+            _, _, T_flange = robot.forward_kinematics(angles)
+            transform_matrices.append(T_flange)
+        except Exception as e:
+            print(f"警告: 计算第 {idx} 组角度的正运动学时出错: {angles}, 错误: {e}. 跳过此组数据.")
+            continue
     
-    def calibrate(self, T_B_F_list, T_L_T_list):
-        """
-        执行手眼标定，计算T_B_L和T_F_T
-        
-        参数:
-        T_B_F_list -- 基座到法兰的变换矩阵列表
-        T_L_T_list -- 激光跟踪仪到工具的变换矩阵列表
-        
-        返回:
-        T_B_L -- 基座到激光跟踪仪的变换矩阵
-        T_F_T -- 法兰到工具的变换矩阵
-        """
-        # 初始猜测值：单位旋转和零平移
-        initial_T_B_L = np.eye(4)
-        initial_T_F_T = np.eye(4)
-        
-        # 转换为参数向量
-        initial_T_B_L_params = self.transform_to_vector(initial_T_B_L[:3, :3], initial_T_B_L[:3, 3])
-        initial_T_F_T_params = self.transform_to_vector(initial_T_F_T[:3, :3], initial_T_F_T[:3, 3])
-        
-        # 组合初始参数
-        initial_params = np.concatenate([initial_T_B_L_params, initial_T_F_T_params])
-        
-        # 进行优化
-        result = minimize(
-            self.cost_function,
-            initial_params,
-            args=(T_B_F_list, T_L_T_list),
-            method='BFGS',
-            options={'maxiter': 1000, 'disp': True}
+    return transform_matrices
+
+
+def calibrate_ax_yb(T_flange2base_list, T_tool2laser_list, method=cv2.CALIB_HAND_EYE_TSAI):
+    """
+    使用 OpenCV 解决 AX = YB 问题。
+    求解 T_tool2flange (X) 和 T_laser2base (Y)。
+
+    参数:
+        T_flange2base_list: 法兰到基座的变换矩阵列表 (A_i)
+        T_tool2laser_list: 工具到激光传感器的变换矩阵列表 (B_i)
+        method: OpenCV calibrateHandEye 使用的标定方法
+
+    返回:
+        (T_X, T_Y): T_tool2flange, T_laser2base 元组。若失败则返回 (None, None)。
+    """
+    if not OPENCV_AVAILABLE:
+        print("错误: 需要 OpenCV 来执行 AX=YB 标定。")
+        return None, None   
+
+    n = len(T_flange2base_list)
+    if n != len(T_tool2laser_list):
+        print("错误: 输入的变换矩阵列表长度不一致。")
+        return None, None
+    if n < 3:
+        print(f"错误: 需要至少3组位姿数据，当前只有 {n} 组。")
+        return None, None
+
+    R_A_prime_list = []  
+    t_A_prime_list = []  
+    R_B_prime_list = []
+    t_B_prime_list = []
+
+    print(f"计算 {n-1} 组相对运动...")
+    # *计算相对运动 A'_i = inv(A_i) * A_{i+1} 和 B'_i = inv(B_i) * B_{i+1}
+    for i in range(n - 1):
+        try:
+            A_i = T_flange2base_list[i]
+            A_i_plus_1 = T_flange2base_list[i+1]
+            A_i_inv = np.linalg.inv(A_i)
+            A_prime = A_i_inv @ A_i_plus_1
+
+            B_i = T_tool2laser_list[i]
+            B_i_plus_1 = T_tool2laser_list[i+1]
+            B_i_inv = np.linalg.inv(B_i)
+            B_prime = B_i_inv @ B_i_plus_1
+
+            R_A_prime_list.append(A_prime[:3, :3])
+            t_A_prime_list.append(A_prime[:3, 3])
+            R_B_prime_list.append(B_prime[:3, :3])
+            t_B_prime_list.append(B_prime[:3, 3])
+
+        except np.linalg.LinAlgError as e:
+            print(f"警告: 计算第 {i} 组相对运动时矩阵求逆失败 ({e})，跳过此组。")
+            continue # 跳过这一对相对运动
+
+    if len(R_A_prime_list) < 2:
+        print(f"错误: 计算得到的有效相对运动组数 ({len(R_A_prime_list)}) 不足 2，无法标定。")
+        return None, None
+
+    print(f"使用 {len(R_A_prime_list)} 组有效相对运动进行 calibrateHandEye 求解 Y (T_laser2base)...")
+    # 调用 calibrateHandEye 求解 A' Y = Y B' 中的 Y
+    # 输入: A' (flange relative) -> gripper2base in OpenCV
+    # 输入: B' (tool/laser relative) -> target2cam in OpenCV
+    # 输出: Y (laser2base) -> cam2gripper in OpenCV
+    try:
+        R_Y, t_Y = cv2.calibrateHandEye(
+            R_gripper2base=R_A_prime_list,
+            t_gripper2base=t_A_prime_list,
+            R_target2cam=R_B_prime_list,
+            t_target2cam=t_B_prime_list,
+            method=method
         )
-        
-        # 提取优化结果
-        optimized_params = result.x
-        T_B_L_params = optimized_params[:7]
-        T_F_T_params = optimized_params[7:]
-        
-        # 转换为变换矩阵
-        T_B_L = self.vector_to_transform(T_B_L_params)
-        T_F_T = self.vector_to_transform(T_F_T_params)
-        
-        return T_B_L, T_F_T, result.fun
-    
-    def evaluate_calibration(self, T_B_F_list, T_L_T_list, T_B_L, T_F_T):
-        """
-        评估标定结果的准确性
-        
-        参数:
-        T_B_F_list -- 基座到法兰的变换矩阵列表
-        T_L_T_list -- 激光跟踪仪到工具的变换矩阵列表
-        T_B_L -- 计算得到的基座到激光跟踪仪的变换矩阵
-        T_F_T -- 计算得到的法兰到工具的变换矩阵
-        
-        返回:
-        mean_error -- 平均误差
-        max_error -- 最大误差
-        """
-        errors = []
-        
-        for i in range(len(T_B_F_list)):
-            # 手眼标定方程: T_B_F * T_F_T = T_B_L * T_L_T
-            left_side = np.dot(T_B_F_list[i], T_F_T)
-            right_side = np.dot(T_B_L, T_L_T_list[i])
-            
-            # 计算误差（矩阵范数）
-            error = np.linalg.norm(left_side - right_side, 'fro')
-            errors.append(error)
-        
-        mean_error = np.mean(errors)
-        max_error = np.max(errors)
-        
-        return mean_error, max_error
+        T_Y = np.eye(4)
+        T_Y[:3, :3] = R_Y
+        T_Y[:3, 3] = t_Y.flatten()
+        print("成功求解 T_Y (T_laser2base)。")
+    except cv2.error as e:
+        print(f"错误: OpenCV calibrateHandEye 失败: {e}")
+        return None, None
+    except Exception as e:
+         print(f"错误: 调用 calibrateHandEye 时发生未知错误: {e}")
+         return None, None
 
-def main():
-    # 设置 NumPy 打印选项，禁用科学计数法
-    np.set_printoptions(suppress=True, precision=6, floatmode='fixed')
-    
-    # 文件路径
-    angle_file = "data/formatted_angle.csv"
-    data_file = "data/formatted_data.csv"
-    
-    # 创建手眼标定实例
-    calibrator = HandEyeCalibration()
-    
-    # 加载数据
-    print("加载数据...")
-    T_B_F_list, T_L_T_list = calibrator.load_data(angle_file, data_file)
-    print(f"加载了 {len(T_B_F_list)} 组数据")
-    
-    # 执行标定
-    print("执行手眼标定...")
-    T_B_L, T_F_T, cost = calibrator.calibrate(T_B_F_list, T_L_T_list)
-    
-    # 评估结果
-    mean_error, max_error = calibrator.evaluate_calibration(T_B_F_list, T_L_T_list, T_B_L, T_F_T)
-    
-    # 打印结果
-    print("\n标定结果:")
-    print("基座到激光跟踪仪的变换矩阵 (T_B_L):")
-    print(T_B_L)
-    print("\n法兰到工具的变换矩阵 (T_F_T):")
-    print(T_F_T)
-    print("\n标定误差:")
-    print(f"优化成本: {cost}")
-    print(f"平均误差: {mean_error}")
-    print(f"最大误差: {max_error}")
+
+    # 使用 Y 和第一组数据求解 X: X = inv(A_0) @ Y @ B_0
+    print("使用 T_Y 和第一组位姿数据求解 T_X (T_tool2flange)...")
+    try:
+        A_0 = T_flange2base_list[0]
+        B_0 = T_tool2laser_list[0]
+        A_0_inv = np.linalg.inv(A_0)
+
+        T_X = A_0_inv @ T_Y @ B_0
+        print("成功求解 T_X (T_tool2flange)。")
+    except np.linalg.LinAlgError as e:
+        print(f"错误: 计算 T_X 时矩阵求逆失败: {e}")
+        return None, T_Y # 至少返回已求解的 Y
+    except IndexError:
+        print("错误: 无法访问 T_flange2base_list[0] 或 T_tool2laser_list[0] 来计算 T_X。")
+        return None, T_Y # 至少返回已求解的 Y
+    except Exception as e:
+        print(f"错误: 计算 T_X 时发生未知错误: {e}")
+        return None, T_Y
+
+
+    return T_X, T_Y
 
 if __name__ == "__main__":
-    main()
+    #! 1. 加载机器人法兰位姿数据 
+    joint_angle_file = "data/joint_angle.csv"
+    joint_angles = load_joint_angles(joint_angle_file)
+    print(f"读取到 {len(joint_angles)} 组关节角度。")
+
+    if joint_angles:
+        print("通过正运动学计算法兰位姿 (T_flange2base)...")
+        T_flange2base = get_fk_transforms(joint_angles)
+        print(f"计算得到 {len(T_flange2base)} 个法兰变换矩阵。")
+        if T_flange2base:
+            print("第一个法兰变换矩阵 T_flange2base[0]:")
+            print(T_flange2base[0])
+    else:
+        T_flange2base = []
+
+    #!  2. 加载工具相对于激光传感器的位姿数据
+    tool_pos_laser_file = "data/tool_pos_laser.csv"
+    T_tool2laser = load_transforms(tool_pos_laser_file)
+    print(f"读取到 {len(T_tool2laser)} 个工具到激光的变换矩阵。")
+    if T_tool2laser:
+        print("第一个工具到激光的变换矩阵 T_tool2laser[0]:")
+        print(T_tool2laser[0])
+
+    #! 3. 执行 AX = YB 标定
+    if not T_flange2base or not T_tool2laser:
+        print("\n错误：缺少法兰位姿或工具激光位姿数据，无法进行标定。")
+    elif len(T_flange2base) != len(T_tool2laser):
+        print(f"\n错误：法兰位姿 ({len(T_flange2base)}) 和工具激光位姿 ({len(T_tool2laser)}) 数量不匹配，无法标定。")
+    else:
+        print("\n开始执行 AX = YB 标定...")
+        # 选择标定方法，例如 TSAI, PARK, HORAUD, ANDREFF, DANIILIDIS
+        calibration_method = cv2.CALIB_HAND_EYE_TSAI
+        # calibration_method = cv2.CALIB_HAND_EYE_PARK
+        # calibration_method = cv2.CALIB_HAND_EYE_HORAUD
+        # calibration_method = cv2.CALIB_HAND_EYE_ANDREFF # Usually requires more poses
+        # calibration_method = cv2.CALIB_HAND_EYE_DANIILIDIS # Usually requires more poses
+        print(f"使用 OpenCV 方法: {calibration_method}")
+
+        T_tool2flange, T_laser2base = calibrate_ax_yb(T_flange2base, T_tool2laser, method=calibration_method)
+
+        if T_tool2flange is not None:
+            print("\n标定结果 T_X (工具到法兰的变换矩阵 T_tool2flange):")
+            print(T_tool2flange)
+
+        if T_laser2base is not None:
+            print("\n标定结果 T_Y (激光传感器到基座的变换矩阵 T_laser2base):")
+            print(T_laser2base)
+
+            # 计算并打印 T_base2laser
+            try:
+                T_base2laser = np.linalg.inv(T_laser2base)
+                print("\n计算得到的基座到激光传感器的变换矩阵 (T_base2laser = inv(T_laser2base)):")
+                print(T_base2laser)
+            except np.linalg.LinAlgError:
+                print("\n计算 T_laser2base 的逆矩阵失败。")
+        else:
+             # 如果 T_laser2base 是 None 但 T_tool2flange 不是 (虽然不太可能在此实现中发生)
+             if T_tool2flange is not None:
+                 print("\n标定部分成功，但未能求解 T_laser2base。")
+             else:
+                 print("\n标定失败。") 

@@ -117,7 +117,7 @@ def main():
     robot = RobotKinematics()
     
     # 示例：使用默认的DH参数中的关节角度
-    joint_angles = [0, 0, 0, 0, 0, 0]
+    joint_angles = [2.636115843805,29.5175455057437,6.10038158777613,34.7483282137072,-47.3762053517954,35.7916251381285]
     
     # 计算正运动学
     position, quaternion, T_flange = robot.forward_kinematics(joint_angles)
