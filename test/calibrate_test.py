@@ -3,6 +3,7 @@ import cv2
 import os
 import sys
 from scipy.spatial.transform import Rotation as R
+import pandas as pd
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -136,45 +137,71 @@ def calibrate_AX_equals_YB(A_list, B_list):
     # 在函数内部打印结果
     print("\n--- AX=YB 标定结果 (使用 cv2.calibrateRobotWorldHandEye) ---")
 
-    # 提取并打印 X (Base -> Laser) 的 xyz 和四元数 (x, y, z, w)
-    X_pos = X[:3, 3]
-    X_rot = R.from_matrix(X[:3, :3])
-    X_quat = X_rot.as_quat() # 获取 [x, y, z, w] 格式的四元数
-    print("X (Base -> Laser):")
-    print("  矩阵:")
-    print(X)
-    print(f"  平移 (x, y, z): {X_pos[0]:.6f}, {X_pos[1]:.6f}, {X_pos[2]:.6f}")
-    print(f"  旋转 (四元数 x, y, z, w): {X_quat[0]:.6f}, {X_quat[1]:.6f}, {X_quat[2]:.6f}, {X_quat[3]:.6f}")
+    # 创建 results 目录（如果不存在）
+    os.makedirs('results', exist_ok=True)
+    
+    # 准备写入文件的内容
+    with open('results/calibration.txt', 'w', encoding='utf-8') as f:
+        f.write("--- AX=YB 标定结果 (使用 cv2.calibrateRobotWorldHandEye) ---\n\n")
 
-    # 提取并打印 Y (Flange -> Tool) 的 xyz 和四元数 (x, y, z, w)
-    Y_pos = Y[:3, 3]
-    Y_rot = R.from_matrix(Y[:3, :3])
-    Y_quat = Y_rot.as_quat() # 获取 [x, y, z, w] 格式的四元数
-    print("\nY (Flange -> Tool):")
-    print("  矩阵:")
-    print(Y)
-    print(f"  平移 (x, y, z): {Y_pos[0]:.6f}, {Y_pos[1]:.6f}, {Y_pos[2]:.6f}")
-    print(f"  旋转 (四元数 x, y, z, w): {Y_quat[0]:.6f}, {Y_quat[1]:.6f}, {Y_quat[2]:.6f}, {Y_quat[3]:.6f}")
+        # 提取并打印 X (Base -> Laser) 的 xyz 和四元数 (x, y, z, w)
+        X_pos = X[:3, 3]
+        X_rot = R.from_matrix(X[:3, :3])
+        X_quat = X_rot.as_quat() # 获取 [x, y, z, w] 格式的四元数
+        print("X (Base -> Laser):")
+        print("  矩阵:")
+        print(X)
+        print(f"  平移 (x, y, z): {X_pos[0]:.6f}, {X_pos[1]:.6f}, {X_pos[2]:.6f}")
+        print(f"  旋转 (四元数 x, y, z, w): {X_quat[0]:.6f}, {X_quat[1]:.6f}, {X_quat[2]:.6f}, {X_quat[3]:.6f}")
+        f.write("X (Base -> Laser):\n")
+        f.write("  矩阵:\n")
+        f.write(str(X) + "\n")
+        f.write(f"  平移 (x, y, z): {X_pos[0]:.6f}, {X_pos[1]:.6f}, {X_pos[2]:.6f}\n")
+        f.write(f"  旋转 (四元数 x, y, z, w): {X_quat[0]:.6f}, {X_quat[1]:.6f}, {X_quat[2]:.6f}, {X_quat[3]:.6f}\n\n")
+
+        # 提取并打印 Y (Flange -> Tool) 的 xyz 和四元数 (x, y, z, w)
+        Y_pos = Y[:3, 3]
+        Y_rot = R.from_matrix(Y[:3, :3])
+        Y_quat = Y_rot.as_quat() # 获取 [x, y, z, w] 格式的四元数
+        print("\nY (Flange -> Tool):")
+        print("  矩阵:")
+        print(Y)
+        print(f"  平移 (x, y, z): {Y_pos[0]:.6f}, {Y_pos[1]:.6f}, {Y_pos[2]:.6f}")
+        print(f"  旋转 (四元数 x, y, z, w): {Y_quat[0]:.6f}, {Y_quat[1]:.6f}, {Y_quat[2]:.6f}, {Y_quat[3]:.6f}")
+        f.write("Y (Flange -> Tool):\n")
+        f.write("  矩阵:\n")
+        f.write(str(Y) + "\n")
+        f.write(f"  平移 (x, y, z): {Y_pos[0]:.6f}, {Y_pos[1]:.6f}, {Y_pos[2]:.6f}\n")
+        f.write(f"  旋转 (四元数 x, y, z, w): {Y_quat[0]:.6f}, {Y_quat[1]:.6f}, {Y_quat[2]:.6f}, {Y_quat[3]:.6f}\n\n")
+
+        # 计算并打印 Y 的逆矩阵 (Tool -> Flange)
+        Y_inv = np.linalg.inv(Y)
+        Y_inv_pos = Y_inv[:3, 3]
+        Y_inv_rot = R.from_matrix(Y_inv[:3, :3])
+        Y_inv_quat = Y_inv_rot.as_quat()
+        print("\nY^-1 (Tool -> Flange):")
+        print("  矩阵:")
+        print(Y_inv)
+        print(f"  平移 (x, y, z): {Y_inv_pos[0]:.6f}, {Y_inv_pos[1]:.6f}, {Y_inv_pos[2]:.6f}")
+        print(f"  旋转 (四元数 x, y, z, w): {Y_inv_quat[0]:.6f}, {Y_inv_quat[1]:.6f}, {Y_inv_quat[2]:.6f}, {Y_inv_quat[3]:.6f}")
+        f.write("Y^-1 (Tool -> Flange):\n")
+        f.write("  矩阵:\n")
+        f.write(str(Y_inv) + "\n")
+        f.write(f"  平移 (x, y, z): {Y_inv_pos[0]:.6f}, {Y_inv_pos[1]:.6f}, {Y_inv_pos[2]:.6f}\n")
+        f.write(f"  旋转 (四元数 x, y, z, w): {Y_inv_quat[0]:.6f}, {Y_inv_quat[1]:.6f}, {Y_inv_quat[2]:.6f}, {Y_inv_quat[3]:.6f}\n")
 
     return X, Y
 
-# TODO: 测试标定
-# 输入多组关节角度
-joint_angles_list = [
-    [2.636115843805, 29.5175455057437, 6.10038158777613, 34.7483282137072, -47.3762053517954, 35.7916251381285],
-    [21.9332955173743, 1.47737168374035, 16.6041763862692, 77.4494485491442, -56.6181359662757, -13.918496932557],
-    [11.9416940707981, 32.0408374574178, -14.3784399916024, 58.7160061596109, -35.1629125653601, -3.249745424493],
-    [25.7872733836713, 2.91726236892728, 47.4129707149368, 54.2643359054748, -70.6869875024335, 24.4322224215242],
-    [22.7893069086801, 27.9177622958598, -27.5333193370876, 92.8322938195731, -50.978765223296, -30.4885413174039],
-]
+# 从 CSV 文件读取关节角度和工具位姿数据
 
-tool_pos_list = [
-    [3217.5715,1957.9307,842.7881,166.7134,-63.6497,-24.6327],
-    [3511.9021,2236.7876,1115.9663,179.8692,-55.0875,-46.6583],
-    [3417.1236,1854.6945,1036.6267,176.2284,-52.0739,-28.7116],
-    [3574.5159,2329.1989,749.7792,169.9358,-56.1041,-30.5712],
-    [3583.595,1969.3769,1255.3038,-174.8057,-61.8494,-46.6957],
-]
+# 读取关节角度数据
+df_joint_angles = pd.read_csv('data/joint_angle.csv', header=None, skiprows=1)
+joint_angles_list = df_joint_angles.iloc[:, :6].values.tolist()
+
+# 读取工具位姿数据
+df_tool_pos = pd.read_csv('data/tool_pos_laser.csv', header=None, skiprows=1)
+tool_pos_list = df_tool_pos.iloc[:, :6].values.tolist()
+
 # 调用函数计算并保存 T_flange
 T_flange_list = calculate_T_flange(joint_angles_list)
 

@@ -47,17 +47,6 @@
 - `data/joint_angle.csv`: 机器人关节角度数据，包含多组j1-j6角度值
 - `data/tool_pos_laser.csv`: 工具相对于激光传感器的位姿数据，包含x,y,z,rx,ry,rz值
 
-## 手眼标定原理
-
-本项目实现了AX=YB问题的解法，其中：
-- A: 法兰到基座的变换矩阵(T_flange2base)
-- X: 工具到法兰的变换矩阵(T_tool2flange)，未知量
-- Y: 激光传感器到基座的变换矩阵(T_laser2base)，未知量
-- B: 工具到激光传感器的变换矩阵(T_tool2laser)
-
-提供了两种实现方式：
-1. 使用OpenCV的calibrateHandEye函数（hand_eye_calibration.py）
-2. 手动实现的Tsai方法（hand_eye_calibration_manual.py）
 
 ## DH参数说明
 
@@ -73,3 +62,35 @@
 | 6    | -90      | 0      | 75     | 180      |
 
 这些参数描述了机器人的几何结构，用于计算正运动学。
+
+## 机器人 DH 参数
+
+在 `forward_kinematics.py` 文件中，我们定义了以下改进的 DH 参数：
+
+```python
+self.modified_dh_params = [
+    [0, 0, 487, 0],
+    [-90, 85, 0, -90],
+    [0, 640, 0, 0],
+    [-90, 205, 720, 0],
+    [90, 0, 0, 0],
+    [-90, 0, 75, 180]
+]
+```
+
+这些参数用于计算机器人的正向运动学，确保准确地模拟机器人的运动和位置。
+
+## 手眼标定功能
+
+在 `calibrate.py` 文件中，我们实现了基于 OpenCV 的手眼标定功能，用于解决 AX=YB 问题，计算以下变换矩阵：
+- 工具到法兰的变换矩阵 (Y: Flange -> Tool)
+- 机器人基座到激光跟踪仪的变换矩阵 (X: Base -> Laser)
+
+### 运行手眼标定
+
+要运行手眼标定程序，请执行以下命令：
+```
+python calibrate.py
+```
+
+该程序会读取预定义的关节角度数据和工具位姿数据，计算并输出变换矩阵 X 和 Y，以及 Y 的逆矩阵 (Tool -> Flange)。

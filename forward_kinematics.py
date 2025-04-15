@@ -15,7 +15,7 @@ class RobotKinematics:
             [-90, 90],
             [-120, 120]
         ]
-        # 改进DH参数: [alpha_i, a_i, d_i, theta_offset_i]
+       # 改进DH参数: [alpha_i, a_i, d_i, theta_offset_i]
         self.modified_dh_params = [
             [0, 0, 487, 0],
             [-90, 85, 0, -90],
@@ -24,6 +24,15 @@ class RobotKinematics:
             [90, 0, 0, 0],
             [-90, 0, 75, 180]
         ]
+        # self.modified_dh_params = [
+        #     [0, 0, 487.4009, -0.0063],
+        #     [-90, 85.5599, 0, -90.2267],
+        #     [0, 639.8143, 0, -0.4689],
+        #     [-90, 205.288, 720.3035, 0.5631],
+        #     [90, 0, 0, 0.0723],
+        #     [-90, 0, 75.7785, 179.6983]
+        # ]
+        
     def modified_dh_matrix(self, alpha_deg, a, d, theta_deg):
         """
         计算改进DH变换矩阵
