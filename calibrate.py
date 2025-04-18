@@ -31,19 +31,14 @@ def calculate_T_flange(joint_angles_list):
     
     # 遍历计算每组关节角度的正运动学
     for i, joint_angles in enumerate(joint_angles_list):
-        position, quaternion, T_flange = robot.forward_kinematics(joint_angles)
+        _, _, T_flange = robot.forward_kinematics(joint_angles)
         T_flange_list.append(T_flange)  # 保存到列表
 
-    print("\n所有变换矩阵 T_flange:")
-    for idx, T in enumerate(T_flange_list):
-        print(f"第 {idx+1} 组 T_flange:")
-        print(T)
-    
     return T_flange_list
 
 def tool_pos_to_transform_matrix(tool_pos_list):
     """
-    将 tool_pos_list 中的位姿数据转换为变换矩阵(XYZ 外旋顺序)
+    将 tool_pos_list 中的位姿数据转换为变换矩阵(xyz 内旋顺序)
     
     参数:
         tool_pos_list: 包含多组位姿的二维列表，每组为 [x, y, z, rx, ry, rz]
@@ -69,11 +64,6 @@ def tool_pos_to_transform_matrix(tool_pos_list):
         T[:3, 3] = translation
         
         Tool_transform_matrix_list.append(T)
-        # 打印结果
-        print("\n所有工具位姿的变换矩阵:")
-        for idx, T in enumerate(Tool_transform_matrix_list):
-            print(f"第 {idx+1} 组 Tool_transform_matrix:")
-            print(T)
 
     
     return Tool_transform_matrix_list
@@ -192,7 +182,7 @@ def calibrate_AX_equals_YB(A_list, B_list):
 
     return X, Y
 
-# 从 CSV 文件读取关节角度和工具位姿数据
+
 
 # 读取关节角度数据
 df_joint_angles = pd.read_csv('data/joint_angle.csv', header=None, skiprows=1)
@@ -211,13 +201,7 @@ Tool_transform_matrix_list = tool_pos_to_transform_matrix(tool_pos_list)
 # --------------------------------------------------
 #    调用 AX=YB 标定函数
 # --------------------------------------------------
-try:
-    X_flange2tool, Y_base2Laser = calibrate_AX_equals_YB(T_flange_list, Tool_transform_matrix_list)
-
-except ValueError as e:
-    print(f"标定错误: {e}")
-except Exception as e:
-    print(f"发生未知错误: {e}")
+X_flange2tool, Y_base2Laser = calibrate_AX_equals_YB(T_flange_list, Tool_transform_matrix_list)
 
 
 
