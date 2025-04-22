@@ -75,7 +75,7 @@ def calibrate_AX_equals_YB(A_list, B_list, tsai_weight=0.5, park_weight=0.5):
 
     该函数用于确定两个未知变换：
     1. 工具坐标系相对于机器人法兰坐标系的变换 (Y: Flange -> Tool) 
-    2. 机器人基座坐标系相对于世界坐标系/激光跟踪仪坐标系的变换 (X: Base -> Laser)
+    2. 机器人基座坐标系相对于激光跟踪仪坐标系的变换 (X: Base -> Laser)
     3. 激光跟踪仪坐标系相对于机器人基座坐标系的变换 (X_inv: Laser -> Base)
 
     方程为: A * X = Y * B
@@ -90,8 +90,8 @@ def calibrate_AX_equals_YB(A_list, B_list, tsai_weight=0.5, park_weight=0.5):
     参数:
         A_list: 包含多个 A 变换矩阵 (4x4 numpy array) 的列表 (Base -> Flange)
         B_list: 包含多个 B 变换矩阵 (4x4 numpy array) 的列表 (Laser -> Tool)
-        tsai_weight: TSAI 方法的权重，范围 [0,1]，默认为 0.5
-        park_weight: PARK 方法的权重，范围 [0,1]，默认为 0.5
+        tsai_weight: TSAI 方法的权重，范围 [0,1]
+        park_weight: PARK 方法的权重，范围 [0,1]
 
     返回:
         X: 求解得到的 Flange -> Tool 变换矩阵 (4x4 numpy array)
@@ -101,16 +101,16 @@ def calibrate_AX_equals_YB(A_list, B_list, tsai_weight=0.5, park_weight=0.5):
     if len(A_list) != len(B_list) or len(A_list) < 3:
         raise ValueError("输入列表长度必须相同且至少为 3 (建议更多组非共面/共线的运动)")
 
-    # 验证权重参数
-    if tsai_weight < 0 or tsai_weight > 1 or park_weight < 0 or park_weight > 1:
-        raise ValueError("权重参数必须在 [0,1] 范围内")
+    # # 验证权重参数
+    # if tsai_weight < 0 or tsai_weight > 1 or park_weight < 0 or park_weight > 1:
+    #     raise ValueError("权重参数必须在 [0,1] 范围内")
     
-    # 确保权重和为1
-    weight_sum = tsai_weight + park_weight
-    if abs(weight_sum - 1.0) > 1e-6:  # 允许一点浮点误差
-        tsai_weight = tsai_weight / weight_sum
-        park_weight = park_weight / weight_sum
-        print(f"警告: 权重和不为1，已自动归一化为 TSAI: {tsai_weight:.4f}, PARK: {park_weight:.4f}")
+    # # 确保权重和为1
+    # weight_sum = tsai_weight + park_weight
+    # if abs(weight_sum - 1.0) > 1e-6:  # 允许一点浮点误差
+    #     tsai_weight = tsai_weight / weight_sum
+    #     park_weight = park_weight / weight_sum
+    #     print(f"警告: 权重和不为1，已自动归一化为 TSAI: {tsai_weight:.4f}, PARK: {park_weight:.4f}")
 
     # 分解 A (Base -> Flange)
     R_base2gripper = [A[:3, :3] for A in A_list]
@@ -331,10 +331,10 @@ if __name__ == "__main__":
     # --------------------------------------------------
     #    调用 AX=YB 标定函数
     # --------------------------------------------------
-    # 使用等权重（0.5, 0.5）
     X_flange2tool, Y_base2Laser, Y_inv_laser2base = calibrate_AX_equals_YB(
         T_flange_list, 
         Tool_transform_matrix_list,
-        tsai_weight=0.5,
-        park_weight=0.5
+        tsai_weight=-0.19626782121420666,
+        park_weight=1.1991339962029677
+
     )
