@@ -74,17 +74,17 @@ def calibrate_AX_equals_YB(A_list, B_list, tsai_weight=0.5, park_weight=0.5):
     同时使用 TSAI 和 PARK 两种方法，并将结果按权重融合。
 
     该函数用于确定两个未知变换：
-    1. 工具坐标系相对于机器人法兰坐标系的变换 (Y: Flange -> Tool) 
-    2. 机器人基座坐标系相对于激光跟踪仪坐标系的变换 (X: Base -> Laser)
-    3. 激光跟踪仪坐标系相对于机器人基座坐标系的变换 (X_inv: Laser -> Base)
+    1. 工具坐标系相对于机器人法兰坐标系的变换 (X: Flange -> Tool) 
+    2. 机器人基座坐标系相对于激光跟踪仪坐标系的变换 (Y: Base -> Laser)
+    3. 激光跟踪仪坐标系相对于机器人基座坐标系的变换 (Y_inv: Laser -> Base)
 
     方程为: A * X = Y * B
 
     其中:
         A: Base -> Flange (机器人法兰相对于基座的位姿，来自机器人正解)
         B: Laser -> Tool (工具末端在激光跟踪仪坐标系下的位姿，来自外部测量)
-        X: Flange -> Tool (待求解的工具变换)
-        Y: Base -> Laser (待求解的基座到激光跟踪仪的变换)
+        X: Base -> Laser (待求解的基座到激光跟踪仪的变换)
+        Y: Flange -> Tool (待求解的工具变换)
         Y_inv: Laser -> Base (Y的逆变换，激光跟踪仪到基座的变换)
 
     参数:
@@ -199,9 +199,9 @@ def calibrate_AX_equals_YB(A_list, B_list, tsai_weight=0.5, park_weight=0.5):
         Y_inv_tsai = np.linalg.inv(Y_tsai)
         
         f.write("TSAI 方法结果:\n")
-        write_transform_info(f, X_tsai, "X (Flange -> Tool)")
-        write_transform_info(f, Y_tsai, "Y (Base -> Laser)")
-        write_transform_info(f, Y_inv_tsai, "Y_inv (Laser -> Base)")
+        write_transform_info(f, X_tsai, "X (Base -> Laser)")
+        write_transform_info(f, Y_tsai, "Y (Flange -> Tool)")
+        write_transform_info(f, Y_inv_tsai, "Y_inv (Tool -> Flange)")
         f.write("\n")
         
         # 打印单独使用 PARK 的结果
@@ -216,23 +216,23 @@ def calibrate_AX_equals_YB(A_list, B_list, tsai_weight=0.5, park_weight=0.5):
         Y_inv_park = np.linalg.inv(Y_park)
         
         f.write("PARK 方法结果:\n")
-        write_transform_info(f, X_park, "X (Flange -> Tool)")
-        write_transform_info(f, Y_park, "Y (Base -> Laser)")
-        write_transform_info(f, Y_inv_park, "Y_inv (Laser -> Base)")
+        write_transform_info(f, X_park, "X (Base -> Laser)")
+        write_transform_info(f, Y_park, "Y (Flange -> Tool)")
+        write_transform_info(f, Y_inv_park, "Y_inv (Tool -> Flange)")
         f.write("\n")
         
         # 打印融合后的结果
         f.write("融合后的最终结果:\n")
-        write_transform_info(f, X, "X (Flange -> Tool)")
-        write_transform_info(f, Y, "Y (Base -> Laser)")
-        write_transform_info(f, Y_inv, "Y_inv (Laser -> Base)")
+        write_transform_info(f, X, "X (Base -> Laser)")
+        write_transform_info(f, Y, "Y (Flange -> Tool)")
+        write_transform_info(f, Y_inv, "Y_inv (Tool -> Flange)")
 
     # 在控制台输出融合结果
     print(f"\n--- AX=YB 标定结果 (TSAI 权重={tsai_weight:.4f}, PARK 权重={park_weight:.4f}) ---")
     X_pos = X[:3, 3]
     X_rot = R.from_matrix(X[:3, :3])
     X_quat = X_rot.as_quat()
-    print("X (Flange -> Tool):")
+    print("X (Base -> Laser):")
     print("  矩阵:")
     print(X)
     print(f"  平移 (x, y, z): {X_pos[0]:.6f}, {X_pos[1]:.6f}, {X_pos[2]:.6f}")
@@ -241,7 +241,7 @@ def calibrate_AX_equals_YB(A_list, B_list, tsai_weight=0.5, park_weight=0.5):
     Y_pos = Y[:3, 3]
     Y_rot = R.from_matrix(Y[:3, :3])
     Y_quat = Y_rot.as_quat()
-    print("\nY (Base -> Laser):")
+    print("\nY (Flange -> Tool):")
     print("  矩阵:")
     print(Y)
     print(f"  平移 (x, y, z): {Y_pos[0]:.6f}, {Y_pos[1]:.6f}, {Y_pos[2]:.6f}")
@@ -250,7 +250,7 @@ def calibrate_AX_equals_YB(A_list, B_list, tsai_weight=0.5, park_weight=0.5):
     Y_inv_pos = Y_inv[:3, 3]
     Y_inv_rot = R.from_matrix(Y_inv[:3, :3])
     Y_inv_quat = Y_inv_rot.as_quat()
-    print("\nY_inv (Laser -> Base):")
+    print("\nY_inv (Tool -> Flange):")
     print("  矩阵:")
     print(Y_inv)
     print(f"  平移 (x, y, z): {Y_inv_pos[0]:.6f}, {Y_inv_pos[1]:.6f}, {Y_inv_pos[2]:.6f}")
